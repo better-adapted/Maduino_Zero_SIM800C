@@ -11,8 +11,14 @@
 uint32_t Program_Checksum = 0;
 uint32_t Bootloader_Checksum = 0;
 
+String CLI_String;
+bool CLI_StringComplete;
+static bool config_mode;
+bool CLI_KeepAwake = false;
 
-#define DEBUG true //true: debug on; false:debug off
+bool CLI_Modem = false;
+bool rtc_interupt_flag = 0;
+
 int _IO_POWER_KEY = 9; //D9
 int IO_DTR_OUT = 5;
 
@@ -37,9 +43,12 @@ String DateString = String(__DATE__) + " " + String(__TIME__);
 String VersionString = "1V00a";
 String ProductString = "Maduino_SIM800C_SVP";
 
-Stream* Serial_Debug=nullptr;
+Stream* DebugPort=nullptr;
 
 RTCZero rtc;
+
+volatile uint32_t T3_Counter = 0;
+volatile bool T3_WakeUp=false;
 
 class jsn_srt04_tank
 {
@@ -117,6 +126,16 @@ public:
 
 jsn_srt04_tank ultrasonic(io_pin_ultrasonic_trigger, io_pin_ultrasonic_input);
 
+void Dummy_Handler(void)
+{
+	CPU_Reset();
+}
+
+void HardFault_Handler(void)
+{
+	CPU_Reset();
+}
+
 void Sleep_Enter()
 {
 	SysTick->CTRL  &= ~ SysTick_CTRL_ENABLE_Msk;
@@ -162,7 +181,7 @@ void PM_Control(bool pUSB_Enable)
 	PM->APBCMASK.bit.I2S_=0;
 	PM->APBCMASK.bit.PAC2_=1;
 	PM->APBCMASK.bit.PTC_=0;
-	PM->APBCMASK.bit.TC3_=0;
+	PM->APBCMASK.bit.TC3_=1;
 	PM->APBCMASK.bit.TC4_=0;
 	PM->APBCMASK.bit.TC5_=0;
 	PM->APBCMASK.bit.TC6_=0;
@@ -190,7 +209,7 @@ void Modem_Power_Down_Fail(int pTrace)
 {
 	char temp_msg[50];	
 	sprintf(temp_msg, "Modem_power_down_fail(%d)", pTrace);
-	Serial_Debug->println(temp_msg);	
+	DebugPort->println(temp_msg);	
 	
 	delay(1000);
 	CPU_Reset();
@@ -198,6 +217,7 @@ void Modem_Power_Down_Fail(int pTrace)
 
 void Modem_Reset_Pulse()
 {
+	DebugPort->println("Modem_Reset_Pulse()");
 	digitalWrite(_IO_POWER_KEY, HIGH);
 	delay(1000); 
 	digitalWrite(_IO_POWER_KEY, LOW);
@@ -209,32 +229,32 @@ int Modem_Init()
 	
 	// check if the modem is one - it should not be!
 	SIM800C_ON = false;  
-	Modem_sendData("AT", 1000, DEBUG);
+	Modem_sendData("AT", 1000,true);
 	delay(1000);	
 
 	if (SIM800C_ON)
 	{
-		Modem_sendData("AT+CPOWD=1", 1000, DEBUG);
+		Modem_sendData("AT+CPOWD=1", 1000,true);
 		delay(2000);
 		
 		SIM800C_ON = false;  
-		Modem_sendData("AT", 1000, DEBUG);
+		Modem_sendData("AT", 1000,true);
 		delay(2000);	
 		
 		if (SIM800C_ON)
 		{
-			Serial_Debug->println("Modem_Init(),AT+CPOWD=1 did not work,trying pulse instead");
+			DebugPort->println("Modem_Init(),AT+CPOWD=1 did not work,trying pulse instead");
 			
 			Modem_Reset_Pulse();
 		}
 
 		SIM800C_ON = false;  
-		Modem_sendData("AT", 1000, DEBUG);
+		Modem_sendData("AT", 1000,true);
 		delay(2000);	
 		
 		if (SIM800C_ON)
 		{
-			Serial_Debug->println("Modem_Init(),failed to power down");
+			DebugPort->println("Modem_Init(),failed to power down");
 			return -1;
 		}
 	}
@@ -245,11 +265,11 @@ int Modem_Init()
 	int pu_counter = 0;	
 	while (!SIM800C_ON && pu_counter < 30)
 	{
-		Modem_sendData("AT", 1000, DEBUG);
+		Modem_sendData("AT", 1000,true);
 		
 		for(int x=0;x<pu_counter;x++)
-			Serial_Debug->print(".");
-		Serial_Debug->println();
+			DebugPort->print(".");
+		DebugPort->println();
 		
 		pu_counter++;
 	}
@@ -259,17 +279,17 @@ int Modem_Init()
 		return -2;
 	}
 	
-	Modem_sendData("AT+CMEE=2", 1000, DEBUG);
+	Modem_sendData("AT+CMEE=2", 1000,true);
 	
 	// command line should be up - start setup!	
-	Modem_sendData("AT+CREG=1", 1000, DEBUG);
+	Modem_sendData("AT+CREG=1", 1000,true);
 	
 	gl_response_ena = true;
 
 	int creg_wait = 0;
 	while (gl_response.indexOf("+CREG: 1,1")<0)
 	{
-		Modem_sendData("AT+CREG?", 1000, DEBUG);
+		Modem_sendData("AT+CREG?", 1000,true);
 		
 		creg_wait++;
 		
@@ -281,15 +301,15 @@ int Modem_Init()
 	
 	
 	//**************Open internet connection*************************  
-	Modem_sendData("AT+CGATT=1", 1000, DEBUG);//Attach to GPRS service
+	Modem_sendData("AT+CGATT=1", 1000,true);//Attach to GPRS service
 	delay(2000); 
-	Modem_sendData("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", 1000, DEBUG);
+	Modem_sendData("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", 1000,true);
 	
-	//  sendData("AT+SAPBR=3,1,\"APN\",\"CMNET\"", 1000, DEBUG);
-	Modem_sendData("AT+SAPBR=1,1", 1000, DEBUG);
+	//  sendData("AT+SAPBR=3,1,\"APN\",\"CMNET\"", 1000,true);
+	Modem_sendData("AT+SAPBR=1,1", 1000,true);
   
 	//***************************************************************
-	Modem_sendData("AT+HTTPINIT", 1000, DEBUG);//initalize HTTP Service
+	Modem_sendData("AT+HTTPINIT", 1000,true);//initalize HTTP Service
 	
 	return 0;
 }
@@ -298,7 +318,7 @@ String Modem_sendData(String command, const int timeout, boolean debug)
 {
 	String response = "";    
 	Serial0.println(command);
-	Serial_Debug->println(">> " + command);
+	DebugPort->println(">> " + command);
 
 	String commandpre = Modem_getcommand_pref(command);
 	//Serial_Debug->println(commandpre);
@@ -324,7 +344,7 @@ String Modem_sendData(String command, const int timeout, boolean debug)
 	}   
 
 	if (debug) {
-		Serial_Debug->println("<< " + response);
+		DebugPort->println("<< " + response);
 	}
 	return response;
 }
@@ -421,38 +441,127 @@ void Version_Echo()
 {
 	char temp[200];
 	
-	sprintf(temp,"\r\rLCM Proto %s %s GNU %d.%d.%d, FreeRam:%d\r\n", __DATE__, __TIME__, __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,FreeRam());
-	Serial_Debug->print(temp);
-	Serial_Debug->flush();	
+	sprintf(temp,"%s %s GNU %d.%d.%d, FreeRam:%d\r\n", __DATE__, __TIME__, __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,FreeRam());
+	DebugPort->println(temp);
+	DebugPort->flush();	
 	
 	sprintf(temp,"Bootloader_Checksum:%08X,Program_Checksum:%08X\r\n",Bootloader_Checksum,Program_Checksum);	
-	Serial_Debug->print(temp);
-	Serial_Debug->flush();	
+	DebugPort->println(temp);
+	DebugPort->flush();	
 }
 
-void Sleep_Test(void)
+void RTC_alarm()
 {
-	Serial5.println("Sleep_Test(),Serial5.flush()");
-	Serial5.flush();
+	rtc_interupt_flag = true;
+}
+
+void Sleep_Mode(void)
+{
+	DebugPort->println("Sleep_Test(),DebugPort->flush()");
+	DebugPort->flush();
 	delay(10);
 	
-	rtc.disableAlarm(); // we want to set a different sleep period 
+	rtc_interupt_flag = false;
+	rtc.SetAlarmSecsFromNow(10*60);
+	rtc.attachInterrupt(RTC_alarm);
 	
-	int secs_temp = rtc.getSeconds();
-	secs_temp +=30;
-	secs_temp %=60;
+	//TC3->COUNT16.CTRLA.bit.RUNSTDBY=0;
+	uint32_t T3_prescaler = 64;
+	uint32_t delay_sec = 10;
+	TC3->COUNT16.CC[0].reg = (32768*delay_sec)/T3_prescaler;
+	
+	while (!rtc_interupt_flag)
+	{
+		Sleep_Enter();
+	
+		if (T3_WakeUp)
+		{
+			T3_WakeUp = false;
 		
-	rtc.enableAlarm(rtc.MATCH_SS);
-	rtc.setAlarmTime(00,00,secs_temp);
-	
-	TC3->COUNT16.CTRLA.bit.RUNSTDBY=0;
-	
-	Sleep_Enter();
+			char temp[50];
+			sprintf(temp,"Woke,T3:%ld",T3_Counter);
+			DebugPort->println(temp);		
+			DebugPort->flush();				
+		}		
+	}
 
-	TC3->COUNT16.CTRLA.bit.RUNSTDBY=1;
+	if (rtc_interupt_flag)
+	{
+		rtc_interupt_flag=false;
+		char temp[50];
+		sprintf(temp,"Woke,rtc_interupt_flag");
+		DebugPort->println(temp);		
+		DebugPort->flush();
+	}
+		
+	//TC3->COUNT16.CTRLA.bit.RUNSTDBY=1;
 
-	Serial5.println("Sleep_Test(),Woke");
-	Serial5.flush();
+	DebugPort->println("Sleep_Test(),Woke");
+	DebugPort->flush();
+}
+
+void TC3_Handler()
+{
+	// Overflow interrupt triggered
+	if(TC3->COUNT16.INTFLAG.bit.OVF == 1)
+	{
+		TC3->COUNT16.INTFLAG.bit.OVF = 1;
+		TC3->COUNT16.INTFLAG.reg = TC_INTFLAG_MC0;		
+		
+		T3_WakeUp = true;
+		T3_Counter++;
+	}
+}
+
+void TC3_Setup()
+{
+	PM->APBCMASK.reg |= PM_APBCMASK_TC3;
+
+	//GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(6) | GCLK_CLKCTRL_ID_TCC2_TC3;  // 6 = lp os
+	
+	GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(1) | GCLK_CLKCTRL_ID_TCC2_TC3;  // GENERIC_CLOCK_GENERATOR_OSC32K =1 from startup.c
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+	
+	//TC3->COUNT16.CTRLA.reg = TC_CTRLA_MODE_COUNT16 | TC_CTRLA_WAVEGEN_MFRQ | TC_CTRLA_PRESCALER_DIV1 | TC_CTRLA_PRESCSYNC_RESYNC;
+	TC3->COUNT16.CTRLA.reg = TC_CTRLA_MODE_COUNT16 | TC_CTRLA_WAVEGEN_MFRQ | TC_CTRLA_PRESCALER_DIV64 | TC_CTRLA_PRESCSYNC_RESYNC;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+
+	TC3->COUNT16.CTRLA.bit.RUNSTDBY = 1;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;	
+
+	TC3->COUNT16.COUNT.reg = 0;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;	
+		
+	//TC3->COUNT16.CC[0].reg = 32768/4;  // 32768=1s, 32768/4 = 250ms
+	TC3->COUNT16.CC[0].reg = 512;  // 32768=1s, 32768/4 = 250ms
+	while(TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+	
+	
+	TC3->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+
+	TC3->COUNT16.DBGCTRL.reg = 0; //TC_DBGCTRL_DBGRUN;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+
+	TC3->COUNT16.INTENSET.reg = TC_INTENSET_MC0;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+
+	NVIC_EnableIRQ(TC3_IRQn);
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
+	
+	// setup timer 3...
+	TC3->COUNT16.CTRLA.bit.ENABLE = 1;
+	while (TC3->COUNT16.STATUS.bit.SYNCBUSY) {}
+	;
 }
 
 void setup_io()
@@ -520,19 +629,209 @@ void setup_io()
 	}	
 }
 
+int CLI_Process_Common(Stream *pStream,const String pString)
+{	
+	if (pString.equals(""))
+	{
+		pStream->println(">");
+		return 0;
+	}
+
+	if (pString.startsWith("RESET"))
+	{
+		pStream->println("RESET");
+		delay(1000);
+		CPU_Reset();
+		return 0;
+	}
+	  	  
+	if (pString.equals("#"))
+	{
+		pStream->println("CLI_KeepAwake=1");
+		CLI_KeepAwake = true;
+		return 0;
+	}
+
+	if (pString.equals("~"))
+	{
+		pStream->println("CLI_KeepAwake=0");
+		CLI_KeepAwake = false;
+		return 0;
+	}
+
+	if (pString.startsWith(">>"))
+	{
+		if (!CLI_Modem)
+		{
+			pStream->println("CLI_DirectLora");
+		}
+		CLI_Modem = true;
+		String Temp = pString.substring(2);
+		Serial0.println(Temp);
+		DebugPort->println(Temp);
+		return 0;
+	}
+	
+	/*if (pString.startsWith("NV."))
+	{
+		return NV.CLI_Handle(DebugPort, pString);
+	}*/
+	
+	if (pString.startsWith("EPOCH="))
+	{
+		uint32_t temp_value = strtol(pString.substring(6).c_str(), 0, 10);          // decimal conversion
+		
+		rtc.setEpoch(temp_value);
+		
+		char temp_str[100];
+		String rtc_temp;
+		rtc.Get_TimeDate_String(rtc_temp);
+		sprintf(temp_str, "EPOCH=%ld,%s", rtc.getEpoch(), rtc_temp.c_str());
+		pStream->println(temp_str);
+		return 0;		
+	}	
+		
+	if ((pString.startsWith("RTC=")) && (pString.charAt(6) == ':') && (pString.charAt(9) == ':') && (pString.charAt(12) == ',') && (pString.charAt(15) == '/') && (pString.charAt(18) == '/') && (pString.charAt(23) == '\r'))
+	{
+		// RTC=15:31:00,14/02/2019r
+		// 012345678901234567890123
+		//           11111111112222
+	
+		String HoursValueString = pString.substring(4, 4 + 2);
+		String MinsValueString = pString.substring(7, 7 + 2);
+		String SecsValueString = pString.substring(10, 10 + 2);
+		
+		String DayValueString = pString.substring(13, 13 + 2);
+		String MonthValueString = pString.substring(16, 16 + 2);
+		String YearValueString = pString.substring(19, 19 + 4);
+
+		long HoursValue = strtol(HoursValueString.c_str(), 0, 10);
+		long MinssValue = strtol(MinsValueString.c_str(), 0, 10);
+		long SecsValue = strtol(SecsValueString.c_str(), 0, 10);
+		long DayValue = strtol(DayValueString.c_str(), 0, 10);
+		long MonthValue = strtol(MonthValueString.c_str(), 0, 10);
+		long YearValue = strtol(YearValueString.c_str(), 0, 10);
+		
+		rtc.setTime(HoursValue, MinssValue, SecsValue);
+		rtc.setDate(DayValue, MonthValue, YearValue - 2000);
+		
+		String temp_rtc_str;
+		rtc.Get_TimeDate_String(temp_rtc_str);
+		
+		char temp_str[100];
+		sprintf(temp_str, "RTC=%s", temp_rtc_str.c_str());
+		pStream->println(temp_str);
+		return 0;
+	}
+	
+	if (pString.startsWith("RTC?"))
+	{
+		String temp_rtc_str;
+		rtc.Get_TimeDate_String(temp_rtc_str);
+		char temp_str[100];
+		sprintf(temp_str, "RTC=%s", temp_rtc_str.c_str());
+		pStream->println(temp_str);
+		return 0;
+	}	
+	
+	if (pString.equals("VERSION"))
+	{
+		char temp[200];
+		sprintf(temp, "\r\rLCM Proto %s %s GNU %d.%d.%d\r\n", __DATE__, __TIME__, __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+		DebugPort->println(temp);
+		DebugPort->flush();
+	}
+	
+}
+
+void DebugPortEvent()
+{
+	while (DebugPort->available())
+	{
+		// get the new byte:
+		char inChar = (char)DebugPort->read();
+		// add it to the inputString:
+		// if the incoming character is a newline, set a flag
+		// so the main loop can do something about it:
+		if(inChar == '\r')
+		{
+			CLI_StringComplete = true;
+		}
+		else if(inChar == '\n')
+		{
+		}		
+		else if(inChar == 0x1b)
+		{
+			config_mode = true;
+			DebugPort->println("ESC pressed - config mode");
+		}		
+		else
+		{
+			CLI_String += inChar;			
+		}
+	}
+	
+	if (CLI_StringComplete)
+	{
+		CLI_Process_Common(DebugPort, CLI_String);
+		
+		CLI_StringComplete = false;
+		CLI_String = "";		
+	}
+}
+
+
+void setup_fuses()
+{
+	const uint32_t USER_WORD_0 = 0xD8E087FF;//0x00200177;
+	const uint32_t USER_WORD_1 = 0xFFFFFC5D;
+	uint32_t UserFuseWordsRead[2] = { 0, 0 };
+	uint32_t UserFuseWords[2] = { USER_WORD_0, USER_WORD_1 };
+	
+	samd21_read_fuse_bits(&UserFuseWordsRead[0]);
+	char temp[100];
+	sprintf(temp,"UW0:%08lX,UW1:%08lX,",UserFuseWordsRead[0], UserFuseWordsRead[1]);
+	DebugPort->print(temp);
+	
+	if ((UserFuseWordsRead[0] == USER_WORD_0)&&(UserFuseWordsRead[1] == USER_WORD_1))
+	{
+		DebugPort->println("DEFAULT FUSES");
+		DebugPort->flush();
+	}
+	else
+	{
+		DebugPort->println("!!!! CUSTOM FUSES !!!!");
+		DebugPort->flush();		
+		
+		samd21_fix_fuses(UserFuseWords);
+		
+		delay(1000);
+		
+		DebugPort->println("Rebooting");
+		DebugPort->flush();
+		
+		CPU_Reset();
+	}
+}
+
 void setup()
 {	
-	//output 1 second pulse to turn on the SIM800C  
-	//SerialUSB.begin(115200);
 	setup_io();
-	
+		
+	SerialUSB.begin(115200);
+	Serial0.begin(19200);
 	Serial5.begin(115200);
-	Serial5.println("Serial 5 open");
 	Wire.begin();
+	
+	TC3_Setup();
+	rtc.begin();	
+	
+	Bootloader_Checksum  = Get_Flash_Checksum(BSUM_FIRST_ADDRESS, BSUM_LAST_ADDRESS+1);
+	Program_Checksum = Get_Flash_Checksum(PSUM_FIRST_ADDRESS, PSUM_LAST_ADDRESS+1);	
 	
 	SERCOM0->USART.CTRLA.bit.RUNSTDBY = 1;
 	SERCOM5->USART.CTRLA.bit.RUNSTDBY = 1;	
-						
+							
 	delay(100);
 	
 	//Waiting for Arduino Serial Monitor port to connect, if you use other serial tool, you can commenting this.
@@ -548,20 +847,19 @@ void setup()
 	if (timeout == 0)
 	{
 		PM_Control(0);
-		Serial_Debug = (Stream*)&Serial5;		
+		DebugPort = (Stream*)&Serial5;		
 	}
 	else
 	{
-		PM_Control(1);		
-		Serial_Debug = (Stream*)&SerialUSB;		
-	}		
-	
-	if (DEBUG) {
-		Serial_Debug->println("program starts to run!");
+		PM_Control(1);
+		DebugPort = (Stream*)&SerialUSB;		
+				
+		USB->DEVICE.CTRLA.bit.RUNSTDBY = 1;
 	}
-	Serial0.begin(19200);
-
-	randomSeed(analogRead(0));   
+	
+	Version_Echo();	
+	
+	setup_fuses();	
 }
 
 //send data to website every 20 seconds
@@ -572,7 +870,7 @@ void loop()
 	gl_response_ena = false;	
 	
 	sprintf(temp_msg, "modem_init_result=%d\r\n", modem_init_result);
-	Serial_Debug->println(temp_msg);
+	DebugPort->println(temp_msg);
 	
 	if (modem_init_result == 0)
 	{		
@@ -580,11 +878,11 @@ void loop()
   
 		humidity = random(0, 100);// print a random number from 0 to 99
                        
-		Serial_Debug->print("random temperature is :");
-		Serial_Debug->println(temperature);
+		DebugPort->print("random temperature is :");
+		DebugPort->println(temperature);
 
-		Serial_Debug->print("random humidity is :");
-		Serial_Debug->println(humidity);
+		DebugPort->print("random humidity is :");
+		DebugPort->println(humidity);
   
 		//String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=" + (String)temperature +"&field2=" + (String)humidity + "\"";
 		//String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=25.5&field2=67.8\"";
@@ -594,23 +892,23 @@ void loop()
 		//Serial_Debug->println(command);
   
 		//Set HTTP Parameters Value 
-		Modem_sendData(command, 1000, DEBUG);
+		Modem_sendData(command, 1000,true);
 		delay(1000); 
-		Modem_sendData("AT+HTTPACTION=0", 5000, DEBUG);//0 get, 1 post, 2 head
+		Modem_sendData("AT+HTTPACTION=0", 5000,true);//0 get, 1 post, 2 head
 		delay(1000); 
-		Modem_sendData("AT+HTTPREAD", 1000, DEBUG);//0 get, 1 post, 2 head
+		Modem_sendData("AT+HTTPREAD", 1000,true);//0 get, 1 post, 2 head
 	
-		Serial_Debug->println("Now turning off SIM800C");	
+		DebugPort->println("Now turning off SIM800C");	
 	
 		Modem_clear_buffer();
 		gl_response_ena = true;
-		Modem_sendData("AT+CPOWD=1", 1000, DEBUG);
+		Modem_sendData("AT+CPOWD=1", 1000,true);
 		
-		int power_down_mesg_wait = 0;
+		int power_down_msg_wait = 0;
 		while (gl_response.indexOf("NORMAL POWER DOWN")<0)
 		{
-			power_down_mesg_wait++;		
-			if (power_down_mesg_wait > 60)
+			power_down_msg_wait++;		
+			if (power_down_msg_wait > 60)
 			{
 				Modem_Power_Down_Fail(1);
 			}
@@ -622,7 +920,9 @@ void loop()
 		Modem_Power_Down_Fail(2);
 	}
 	
-	Sleep_Test();
+	DebugPortEvent();
+	
+	Sleep_Mode();
 
 	
 /*	int sleep_counter = 60 * 60;	
