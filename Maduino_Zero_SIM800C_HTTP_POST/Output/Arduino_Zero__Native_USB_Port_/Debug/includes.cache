@@ -11,6 +11,36 @@
   },
   {
     "Sourcefile": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\Output\\Arduino_Zero__Native_USB_Port_\\Debug\\sketch\\Maduino_Zero_SIM800C_HTTP_POST.ino.cpp",
+    "Include": "RTCZero.h",
+    "Includepath": "C:\\Users\\adam\\Documents\\Arduino\\Libraries\\RTCZero\\src"
+  },
+  {
+    "Sourcefile": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\Output\\Arduino_Zero__Native_USB_Port_\\Debug\\sketch\\Maduino_Zero_SIM800C_HTTP_POST.ino.cpp",
+    "Include": "SAMD21_COM.h",
+    "Includepath": "C:\\Users\\adam\\Documents\\Arduino\\Libraries\\SAMD21_COM"
+  },
+  {
+    "Sourcefile": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\Output\\Arduino_Zero__Native_USB_Port_\\Debug\\sketch\\Maduino_Zero_SIM800C_HTTP_POST.ino.cpp",
+    "Include": "Wire.h",
+    "Includepath": "C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\samd\\1.8.11\\libraries\\Wire"
+  },
+  {
+    "Sourcefile": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\Output\\Arduino_Zero__Native_USB_Port_\\Debug\\sketch\\Maduino_Zero_SIM800C_HTTP_POST.ino.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\adam\\Documents\\Arduino\\Libraries\\RTCZero\\src\\RTCZero.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\adam\\Documents\\Arduino\\Libraries\\SAMD21_COM\\SAMD21_COM.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\samd\\1.8.11\\libraries\\Wire\\Wire.cpp",
     "Include": "",
     "Includepath": null
   }

@@ -1,33 +1,19 @@
 # 1 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
-
-
+# 2 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 2
+# 3 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 2
 # 4 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 2
+# 5 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 2
 
 
 
-//view page: https://thingspeak.com/channels/825092 
-/**
 
- * Maduino Zero SIM800C AT Commands Demo
 
- * Author:Charlin
 
- * Date:2019/07/20
+uint32_t Program_Checksum = 0;
+uint32_t Bootloader_Checksum = 0;
 
- * Version:v1.0
 
- * Website:www.makerfabs.com
 
- * Email:Charlin@makerfabs.com
-
- * Function: 
-
- * Post random data to website via GSM/GPRS network
-
- * So upload this firmware to board, you can view the data on the web page  https://thingspeak.com/channels/825092
-
- */
-# 22 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
 int _IO_POWER_KEY = 9; //D9
 int IO_DTR_OUT = 5;
 
@@ -48,9 +34,13 @@ const int io_pin_ultrasonic_input = 33;
 
 float batt_voltage_nominal = 0.0;
 
-String DateString = String("Oct 26 2021") + " " + String("16:04:47");
+String DateString = String("Oct 26 2021") + " " + String("19:39:49");
 String VersionString = "1V00a";
 String ProductString = "Maduino_SIM800C_SVP";
+
+Stream* Serial_Debug=nullptr;
+
+RTCZero rtc;
 
 class jsn_srt04_tank
 {
@@ -118,21 +108,78 @@ public:
 
  }
 
- void print_reading()
+ String get_reading()
  {
   char string_msg[200];
   sprintf(string_msg, "Ultrasonic,reading_mm:%d,timeouts:%d,tank_level_mm:%d,tank_volume_ml:%d,tank_volume_percentage:%.01f%c,@:%ld", reading_mm, timeouts, tank_level_mm, tank_volume_ml, tank_volume_per, '%', millis());
-  Serial.println(string_msg);
+  return string_msg;
  }
 };
 
 jsn_srt04_tank ultrasonic(io_pin_ultrasonic_trigger, io_pin_ultrasonic_input);
 
-
-void CPU_Reset()
+void Sleep_Enter()
 {
- NVIC_SystemReset(); // processor software reset
+ ((SysTick_Type *) ((0xE000E000UL) /*!< System Control Space Base Address */ + 0x0010UL) /*!< SysTick Base Address */ ) /*!< SysTick configuration struct */->CTRL &= ~ (1UL /*<< SysTick_CTRL_ENABLE_Pos*/) /*!< SysTick CTRL: ENABLE Mask */;
+ ((SCB_Type *) ((0xE000E000UL) /*!< System Control Space Base Address */ + 0x0D00UL) /*!< System Control Block Base Address */ ) /*!< SCB configuration struct */->SCR |= (1UL << 2U /*!< SCB SCR: SLEEPDEEP Position */) /*!< SCB SCR: SLEEPDEEP Mask */;
+
+ __DSB();
+ __WFI();
+
+ ((SysTick_Type *) ((0xE000E000UL) /*!< System Control Space Base Address */ + 0x0010UL) /*!< SysTick Base Address */ ) /*!< SysTick configuration struct */->CTRL |= (1UL /*<< SysTick_CTRL_ENABLE_Pos*/) /*!< SysTick CTRL: ENABLE Mask */;
 }
+
+void PM_Control(bool pUSB_Enable)
+{
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.HPB0_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.HPB1_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.HPB2_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.DSU_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.NVMCTRL_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.DMAC_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->AHBMASK.bit.USB_=pUSB_Enable;
+
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.EIC_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.GCLK_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.PAC0_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.PM_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.RTC_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.SYSCTRL_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBAMASK.bit.WDT_=1;
+
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.DMAC_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.PAC1_=0; /*!< bit:      0  PAC1 APB Clock Enable              */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.DSU_=0; /*!< bit:      1  DSU APB Clock Enable               */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.NVMCTRL_=1; /*!< bit:      2  NVMCTRL APB Clock Enable           */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.PORT_=1; /*!< bit:      3  PORT APB Clock Enable              */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.DMAC_=0; /*!< bit:      4  DMAC APB Clock Enable              */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.USB_=pUSB_Enable; /*!< bit:      5  USB APB Clock Enable               */
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBBMASK.bit.HMATRIX_=1; /*!< bit:      6  HMATRIX APB Clock Enable           */
+
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.AC_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.ADC_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.DAC_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.EVSYS_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.I2S_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.PAC2_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.PTC_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TC3_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TC4_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TC5_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TC6_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TC7_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TCC0_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TCC1_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.TCC2_=0;
+
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM0_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM1_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM2_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM3_=1;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM4_=0;
+ ((Pm *)0x40000400UL) /**< \brief (PM) APB Base Address */->APBCMASK.bit.SERCOM5_=1;
+}
+
 
 void Modem_clear_buffer()
 {
@@ -144,7 +191,7 @@ void Modem_Power_Down_Fail(int pTrace)
 {
  char temp_msg[50];
  sprintf(temp_msg, "Modem_power_down_fail(%d)", pTrace);
- SerialUSB.println(temp_msg);
+ Serial_Debug->println(temp_msg);
 
  delay(1000);
  CPU_Reset();
@@ -177,7 +224,7 @@ int Modem_Init()
 
   if (SIM800C_ON)
   {
-   SerialUSB.println("Modem_Init(),AT+CPOWD=1 did not work,trying pulse instead");
+   Serial_Debug->println("Modem_Init(),AT+CPOWD=1 did not work,trying pulse instead");
 
    Modem_Reset_Pulse();
   }
@@ -188,12 +235,12 @@ int Modem_Init()
 
   if (SIM800C_ON)
   {
-   SerialUSB.println("Modem_Init(),failed to power down");
+   Serial_Debug->println("Modem_Init(),failed to power down");
    return -1;
   }
  }
 
- Serial1.flush();
+ Serial0.flush();
  Modem_Reset_Pulse();
 
  int pu_counter = 0;
@@ -202,8 +249,8 @@ int Modem_Init()
   Modem_sendData("AT", 1000, true /*true: debug on; false:debug off*/);
 
   for(int x=0;x<pu_counter;x++)
-   SerialUSB.print(".");
-  SerialUSB.println();
+   Serial_Debug->print(".");
+  Serial_Debug->println();
 
   pu_counter++;
  }
@@ -251,26 +298,26 @@ int Modem_Init()
 String Modem_sendData(String command, const int timeout, boolean debug)
 {
  String response = "";
- Serial1.println(command);
- SerialUSB.println(">> " + command);
+ Serial0.println(command);
+ Serial_Debug->println(">> " + command);
 
  String commandpre = Modem_getcommand_pref(command);
- //SerialUSB.println(commandpre);
+ //Serial_Debug->println(commandpre);
 
  long int time = millis();
  while ((time + timeout) > millis())
  {
   if (commandpre == "AT") {
-   if (Serial1.find("OK")) {
+   if (Serial0.find("OK")) {
     SIM800C_ON = true;
     SIM800C_ON_Once = true;
-    //SerialUSB.println("SIM800C is ON");
+    //Serial_Debug->println("SIM800C is ON");
    }
   }
 
-  while (Serial1.available())
+  while (Serial0.available())
   {
-   String c = Serial1.readString();
+   String c = Serial0.readString();
    response += c;
    if(gl_response_ena)
     gl_response += c;
@@ -278,7 +325,7 @@ String Modem_sendData(String command, const int timeout, boolean debug)
  }
 
  if (debug) {
-  SerialUSB.println("<< " + response);
+  Serial_Debug->println("<< " + response);
  }
  return response;
 }
@@ -291,12 +338,12 @@ String Modem_getcommand_pref(String command) {
  char * token = strtok(cstr, "=");
  int i = 0;
  while (token != 
-# 284 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 3 4
+# 339 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 3 4
                 __null
-# 284 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
+# 339 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
                     ) {
-   //SerialUSB.print(token);
-   //SerialUSB.println("  line" + (String)i);
+   //Serial_Debug->print(token);
+   //Serial_Debug->println("  line" + (String)i);
 
   switch (i) {
   case 0:
@@ -308,9 +355,9 @@ String Modem_getcommand_pref(String command) {
   }
 
   token = strtok(
-# 297 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 3 4
+# 352 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino" 3 4
                 __null
-# 297 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
+# 352 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
                     , ",");
   i = i + 1;
  }
@@ -379,24 +426,149 @@ String Get_HTTP_Readings_String()
  return values_string;
 }
 
+void Version_Echo()
+{
+ char temp[200];
+
+ sprintf(temp,"\r\rLCM Proto %s %s GNU %d.%d.%d, FreeRam:%d\r\n", "Oct 26 2021", "19:39:49", 7, 2, 1,FreeRam());
+ Serial_Debug->print(temp);
+ Serial_Debug->flush();
+
+ sprintf(temp,"Bootloader_Checksum:%08X,Program_Checksum:%08X\r\n",Bootloader_Checksum,Program_Checksum);
+ Serial_Debug->print(temp);
+ Serial_Debug->flush();
+}
+
+void Sleep_Test(void)
+{
+ Serial5.println("Sleep_Test(),Serial5.flush()");
+ Serial5.flush();
+ delay(10);
+
+ rtc.disableAlarm(); // we want to set a different sleep period 
+
+ int secs_temp = rtc.getSeconds();
+ secs_temp +=30;
+ secs_temp %=60;
+
+ rtc.enableAlarm(rtc.MATCH_SS);
+ rtc.setAlarmTime(00,00,secs_temp);
+
+ ((Tc *)0x42002C00UL) /**< \brief (TC3) APB Base Address */->COUNT16.CTRLA.bit.RUNSTDBY=0;
+
+ Sleep_Enter();
+
+ ((Tc *)0x42002C00UL) /**< \brief (TC3) APB Base Address */->COUNT16.CTRLA.bit.RUNSTDBY=1;
+
+ Serial5.println("Sleep_Test(),Woke");
+ Serial5.flush();
+}
+
+void setup_io()
+{
+ pinDigInit(14, OUTPUT, LOW);// PA02	
+ //pinDigInit(42, OUTPUT, LOW);// PA03
+ pinDigInit(17, OUTPUT, LOW);// PA04
+ pinDigInit(18, OUTPUT, LOW);// PA05
+
+ pinDigInit(8, OUTPUT, LOW); // PA06
+ pinDigInit(9, OUTPUT, LOW); // PA07	- modem power key
+ pinDigInit(4, OUTPUT, HIGH); // PA08 - sd cs
+ pinDigInit(3, OUTPUT, LOW); // PA09
+
+ //pinDigInit(1, OUTPUT, LOW); // PA10 - modem
+ //pinDigInit(0, OUTPUT, LOW); // PA11 - modem
+
+ pinDigInit(22, OUTPUT, LOW);// PA12 - miso
+ pinDigInit(38, OUTPUT, LOW);// PA13
+ pinDigInit(2, OUTPUT, LOW); // PA14
+ pinDigInit(5, OUTPUT, LOW); // PA15	- modem dtr
+ pinDigInit(11, OUTPUT, LOW);// PA16
+ pinDigInit(13, OUTPUT, LOW);// PA17
+ pinDigInit(10, OUTPUT, LOW);// PA18
+ pinDigInit(12, OUTPUT, LOW);// PA19
+ pinDigInit(6, OUTPUT, LOW); // PA20
+ pinDigInit(7, OUTPUT, LOW); // PA21
+ pinDigInit(20, INPUT, LOW);// PA22 - sda
+ pinDigInit(21, INPUT, LOW);// PA23 - scl
+
+ pinDigInit(28, OUTPUT, LOW);// PA24
+ pinDigInit(29, OUTPUT, LOW);// PA25
+ pinDigInit(26, OUTPUT, LOW);// PA27
+ pinDigInit(27, OUTPUT, LOW);// PA28
+
+ pinDigInit(44, OUTPUT, LOW);// PA30
+ pinDigInit(45, OUTPUT, LOW);// PA31
+
+ pinDigInit(19, OUTPUT, LOW);// PB02
+ pinDigInit(25, OUTPUT, LOW);// PB03
+ pinDigInit(15, OUTPUT, LOW);// PB08
+ pinDigInit(23, OUTPUT, LOW);// PB10 - mosi
+ pinDigInit(24, OUTPUT, LOW);// PB11 - sck
+ pinDigInit(16, OUTPUT, LOW);// PB19
+ pinDigInit(30, OUTPUT, LOW);// PB22
+ pinDigInit(31, OUTPUT, LOW);// PB23
+
+ if (0)
+ {
+  pinDigInit(43, INPUT, HIGH);// PA02	repeated	
+  pinDigInit(32, INPUT, HIGH);// PA22 repeated
+  pinDigInit(33, INPUT, HIGH);// PA23 repeated
+
+  pinDigInit(40, INPUT, HIGH);// PA06 repeated
+  pinDigInit(41, INPUT, HIGH);// PA07 repeated
+  pinDigInit(39, INPUT, HIGH);// PA21 repeated
+
+  pinDigInit(35, INPUT, HIGH);// PA16 repeated
+  pinDigInit(37, INPUT, HIGH);// PA17 repeated
+  pinDigInit(36, INPUT, HIGH);// PA18 repeated
+  pinDigInit(34, INPUT, HIGH);// PA19 repeated
+
+  pinDigInit(46, INPUT, HIGH);// PA20 repeated
+  pinDigInit(47, INPUT, HIGH);// PA21 repeated		
+ }
+}
+
 void setup()
 {
- pinMode(_IO_POWER_KEY, OUTPUT);
- digitalWrite(_IO_POWER_KEY, LOW);
-
- //Waiting for Arduino Serial Monitor port to connect, if you use other serial tool, you can commenting this.
- while (!SerialUSB) {
-  delay(100);
- }
-
  //output 1 second pulse to turn on the SIM800C  
- SerialUSB.begin(115200);
+ //SerialUSB.begin(115200);
+ setup_io();
+
+ Serial5.begin(115200);
+ Serial5.println("Serial 5 open");
+ Wire.begin();
+
+ ((Sercom *)0x42000800UL) /**< \brief (SERCOM0) APB Base Address */->USART.CTRLA.bit.RUNSTDBY = 1;
+ ((Sercom *)0x42001C00UL) /**< \brief (SERCOM5) APB Base Address */->USART.CTRLA.bit.RUNSTDBY = 1;
+
  delay(100);
 
- if (true /*true: debug on; false:debug off*/) {
-  SerialUSB.println("program starts to run!");
+ //Waiting for Arduino Serial Monitor port to connect, if you use other serial tool, you can commenting this.
+ int timeout = 0;
+ bool usb_connected = 0;
+
+ while (!SerialUSB && timeout > 0 && usb_connected)
+ {
+  delay(1000);
+  timeout--;
  }
- Serial1.begin(19200);
+
+ if (timeout == 0)
+ {
+  PM_Control(0);
+  Serial_Debug = (Stream*)&Serial5;
+ }
+ else
+ {
+  PM_Control(1);
+  Serial_Debug = (Stream*)&SerialUSB;
+ }
+
+ if (true /*true: debug on; false:debug off*/) {
+  Serial_Debug->println("program starts to run!");
+ }
+ Serial0.begin(19200);
 
  randomSeed(analogRead(0));
 }
@@ -409,7 +581,7 @@ void loop()
  gl_response_ena = false;
 
  sprintf(temp_msg, "modem_init_result=%d\r\n", modem_init_result);
- SerialUSB.println(temp_msg);
+ Serial_Debug->println(temp_msg);
 
  if (modem_init_result == 0)
  {
@@ -417,18 +589,18 @@ void loop()
 
   humidity = random(0, 100);// print a random number from 0 to 99
 
-  SerialUSB.print("random temperature is :");
-  SerialUSB.println(temperature);
+  Serial_Debug->print("random temperature is :");
+  Serial_Debug->println(temperature);
 
-  SerialUSB.print("random humidity is :");
-  SerialUSB.println(humidity);
+  Serial_Debug->print("random humidity is :");
+  Serial_Debug->println(humidity);
 
   //String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=" + (String)temperature +"&field2=" + (String)humidity + "\"";
   //String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=25.5&field2=67.8\"";
 
   String command = "AT+HTTPPARA=\"URL\",\"http://www.indispensable.systems/esp32_readings_process.php" + Get_HTTP_Readings_String() + "\"";
 
-  //SerialUSB.println(command);
+  //Serial_Debug->println(command);
 
   //Set HTTP Parameters Value 
   Modem_sendData(command, 1000, true /*true: debug on; false:debug off*/);
@@ -437,13 +609,11 @@ void loop()
   delay(1000);
   Modem_sendData("AT+HTTPREAD", 1000, true /*true: debug on; false:debug off*/);//0 get, 1 post, 2 head
 
-  SerialUSB.println("Now turning off SIM800C");
+  Serial_Debug->println("Now turning off SIM800C");
 
   Modem_clear_buffer();
   gl_response_ena = true;
   Modem_sendData("AT+CPOWD=1", 1000, true /*true: debug on; false:debug off*/);
-
-  //Modem_Reset_Pulse();
 
   int power_down_mesg_wait = 0;
   while (gl_response.indexOf("NORMAL POWER DOWN")<0)
@@ -461,22 +631,41 @@ void loop()
   Modem_Power_Down_Fail(2);
  }
 
- int sleep_counter = 60 * 60;
+ Sleep_Test();
 
- SerialUSB.println("Going to Sleep");
- Modem_clear_buffer();
 
- while (sleep_counter > 0)
- {
-  delay(1000);
-  sleep_counter--;
+/*	int sleep_counter = 60 * 60;	
 
-  while (Serial1.available())
-  {
-   String c = Serial1.readString();
-   gl_response += c;
-  }
+	SerialUSB.println("Going to Sleep");	
 
-  SerialUSB.print(gl_response);
- }
+	Modem_clear_buffer();	
+
+	
+
+	while (sleep_counter > 0)
+
+	{		
+
+		delay(1000);			
+
+		sleep_counter--;
+
+		
+
+		while (Serial0.available())
+
+		{       
+
+			String c = Serial0.readString(); 
+
+			gl_response += c;
+
+		}
+
+		
+
+		SerialUSB.print(gl_response);
+
+	}*/
+# 645 "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
 }
