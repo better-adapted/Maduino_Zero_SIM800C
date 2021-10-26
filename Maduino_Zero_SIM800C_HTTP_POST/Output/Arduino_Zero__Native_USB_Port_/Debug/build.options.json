@@ -1,0 +1,11 @@
+{
+  "additionalFiles": "",
+  "builtInLibrariesFolders": "C:\\Program Files (x86)\\Arduino\\libraries",
+  "builtInToolsFolders": "C:/Program Files (x86)/Arduino/tools-builder,C:\\Users\\adam\\AppData\\Local/Arduino15/packages",
+  "customBuildProperties": "runtime.tools.arduinoOTA.path=C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\arduinoOTA\\1.2.1,runtime.tools.ctags.path=C:\\Users\\adam\\AppData\\Local\\VisualGDB\\Arduino\\tools-builder\\ctags\\5.8-arduino11",
+  "fqbn": "arduino:samd:arduino_zero_native",
+  "hardwareFolders": "C:\\Program Files (x86)\\Arduino\\hardware,C:\\Users\\adam\\Documents\\Arduino\\hardware,C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages",
+  "otherLibrariesFolders": "C:\\Users\\adam\\Documents\\Arduino\\Libraries",
+  "runtime.ide.version": "10600",
+  "sketchLocation": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\sketches\\Maduino_Zero_SIM800C_HTTP_POST.ino"
+}

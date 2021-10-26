@@ -1,0 +1,8 @@
+*.~u
+*.compileinfo
+.visualgdb
+*.hex
+*.elf
+*.o
+*.d
+*.a

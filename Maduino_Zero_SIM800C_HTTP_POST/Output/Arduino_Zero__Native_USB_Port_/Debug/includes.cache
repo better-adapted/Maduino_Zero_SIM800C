@@ -1,0 +1,17 @@
+[
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\samd\\1.8.11\\cores\\arduino"
+  },
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\adam\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\samd\\1.8.11\\variants\\arduino_zero"
+  },
+  {
+    "Sourcefile": "D:\\SourceTree\\Maduino_Zero_SIM800C\\Maduino_Zero_SIM800C_HTTP_POST\\Output\\Arduino_Zero__Native_USB_Port_\\Debug\\sketch\\Maduino_Zero_SIM800C_HTTP_POST.ino.cpp",
+    "Include": "",
+    "Includepath": null
+  }
+]
