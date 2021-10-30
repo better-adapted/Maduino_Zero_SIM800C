@@ -41,7 +41,9 @@ float batt_voltage_nominal = 0.0;
 
 String DateString = String(__DATE__) + " " + String(__TIME__);
 String VersionString = "1V00a";
-String ProductString = "Maduino_SIM800C_SVP";
+String ProductString = "Maduino_SIM800C_SVP"; 
+
+String Modem_IMEI = "";
 
 Stream* DebugPort=nullptr;
 
@@ -278,27 +280,56 @@ int Modem_Init()
 	{
 		return -2;
 	}
-	
+		
 	Modem_sendData("AT+CMEE=2", 1000,true);
 	
 	// command line should be up - start setup!	
 	Modem_sendData("AT+CREG=1", 1000,true);
 	
-	gl_response_ena = true;
-
-	int creg_wait = 0;
-	while (gl_response.indexOf("+CREG: 1,1")<0)
+	if (Modem_IMEI == "")
 	{
-		Modem_sendData("AT+CREG?", 1000,true);
+		gl_response = "";
+		gl_response_ena = true;
+	
+		// "AT+GSN\r\r\n861230040384811\r\n\r\nOK\r\n" {65 'A'}
+		Modem_sendData("AT+GSN", 1000, true);
+	
+		String gsn_start_token = "AT+GSN\r\r\n";
+		int gsn_token_index = gl_response.indexOf(gsn_start_token);
 		
-		creg_wait++;
-		
-		if (creg_wait > 60)
-		{			
-			return -1;
+		if(gsn_token_index>=0)
+		{
+			String gsn_stop_token = "\r\n\r\nOK\r\n";
+			int gsn_index_start=0;
+			int gsn_index_stop=0;
+			String temp = "";
+
+			gsn_index_start = gsn_token_index + gsn_start_token.length();
+			gsn_index_stop = gl_response.indexOf(gsn_stop_token);
+			temp = gl_response.substring(gsn_index_start, gsn_index_stop);
+			
+			Modem_IMEI = temp;
 		}
+
+		delay(1000);		
 	}
 	
+	{
+		int creg_wait = 0;
+		while (gl_response.indexOf("+CREG: 1,1")<0)
+		{
+			gl_response_ena = true;
+			gl_response = "";
+			Modem_sendData("AT+CREG?", 1000,true);
+		
+			creg_wait++;
+		
+			if (creg_wait > 60)
+			{			
+				return -1;
+			}
+		}			
+	}	
 	
 	//**************Open internet connection*************************  
 	Modem_sendData("AT+CGATT=1", 1000,true);//Attach to GPRS service
@@ -383,8 +414,8 @@ String Get_HTTP_Readings_String()
 {
 	//Check the current connection status		
 	int httpCode;
-	String str_mac = "";//String(WiFi.macAddress());
-	String str_hash_temp = "HASH_TEMP";
+	String str_mac = Modem_IMEI;
+	String str_hash_temp = "tPmAT5Ab3j7F9";
 		
 	String str_tank_volume_per = String(ultrasonic.tank_volume_per);
 	String str_tank_volume_ml = String(ultrasonic.tank_volume_ml);
@@ -412,25 +443,13 @@ String Get_HTTP_Readings_String()
 	values_string += "&";
 	values_string += "HASH=" + str_hash_temp;
 	values_string += "&";
-	values_string += "tank_volume_per="  + str_tank_volume_per;
-	values_string += "&";
-	values_string += "tank_volume_ml="  + str_tank_volume_ml;
-	values_string += "&";
-	values_string += "tank_level_mm="  + str_tank_level_mm;		
-	values_string += "&";
 	values_string += "batt_voltage_nominal="  + str_batt_voltage_nominal;
 	values_string += "&";
 	values_string += "seconds_since_reboot="  + str_seconds_since_reboot;
 	values_string += "&";
 	values_string += "sensor_raw_reading_mm="  + str_sensor_raw_reading_mm;
 	values_string += "&";
-	values_string += "sensor_deadband_mm="  + str_sensor_deadband_mm;
-	values_string += "&";
 	values_string += "error_message_string="  + str_error_message_string;
-	values_string += "&";
-	values_string += "tank_height_mm="  + str_tank_height_mm;		
-	values_string += "&";
-	values_string += "tank_cas_mm2="  + str_tank_cas_mm2;		
 	values_string += "&";
 	values_string += "software_version="  + str_software_version;
 			
@@ -445,7 +464,7 @@ void Version_Echo()
 	DebugPort->println(temp);
 	DebugPort->flush();	
 	
-	sprintf(temp,"Bootloader_Checksum:%08X,Program_Checksum:%08X\r\n",Bootloader_Checksum,Program_Checksum);	
+	sprintf(temp,"Bootloader_Checksum:%08lX,Program_Checksum:%08lX\r\n",Bootloader_Checksum,Program_Checksum);	
 	DebugPort->println(temp);
 	DebugPort->flush();	
 }
@@ -462,7 +481,7 @@ void Sleep_Mode(void)
 	delay(10);
 	
 	rtc_interupt_flag = false;
-	rtc.SetAlarmSecsFromNow(10*60);
+	rtc.SetAlarmSecsFromNow(60*60);
 	rtc.attachInterrupt(RTC_alarm);
 	
 	//TC3->COUNT16.CTRLA.bit.RUNSTDBY=0;
@@ -887,9 +906,9 @@ void loop()
 		//String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=" + (String)temperature +"&field2=" + (String)humidity + "\"";
 		//String command = "AT+HTTPPARA=\"URL\",\"http://api.thingspeak.com/update.json?api_key=" + (String)APIKEY + "&field1=25.5&field2=67.8\"";
 
-		String command = "AT+HTTPPARA=\"URL\",\"http://www.indispensable.systems/esp32_readings_process.php" + Get_HTTP_Readings_String() + "\"";
+		String command = "AT+HTTPPARA=\"URL\",\"http://www.indispensable.systems/post-data.php" + Get_HTTP_Readings_String() + "\"";
 	
-		//Serial_Debug->println(command);
+		//DebugPort->println(command);
   
 		//Set HTTP Parameters Value 
 		Modem_sendData(command, 1000,true);

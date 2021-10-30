@@ -1,0 +1,12 @@
+CREATE TABLE SonicData (
+	id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+	MAC VARCHAR(30) NOT NULL,
+	HASH VARCHAR(30) NOT NULL,
+	batt_voltage_nominal VARCHAR(30),
+	seconds_since_reboot VARCHAR(30),
+	sensor_raw_reading_mm VARCHAR(30),
+	error_message_string VARCHAR(30),
+	software_version VARCHAR(30),
+	local_epoch VARCHAR(30),
+	reading_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)
